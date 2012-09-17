@@ -21,7 +21,8 @@
       "bindings": "*"
   }
 , "devDependencies": {
-      "mocha": "> 0.7.0"
+      "mocha": "> 0.7.0",
+      "node-gyp": ">= 0.6.10"
     , "should": "*"
   }
 }
