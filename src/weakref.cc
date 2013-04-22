@@ -35,6 +35,9 @@ typedef struct proxy_container {
 Persistent<ObjectTemplate> proxyClass;
 
 
+Isolate* isolate;
+
+
 bool IsDead(Handle<Object> proxy) {
   assert(proxy->InternalFieldCount() == 1);
   proxy_container *cont = reinterpret_cast<proxy_container*>(
@@ -147,10 +150,10 @@ void AddCallback(Handle<Object> proxy, Handle<Function> callback) {
 }
 
 
-void TargetCallback(Persistent<Value> target, void* arg) {
+void TargetCallback(Isolate* env, Persistent<Value> target, void* arg) {
   HandleScope scope;
 
-  assert(target.IsNearDeath());
+  assert(target.IsNearDeath(env));
 
   proxy_container *cont = reinterpret_cast<proxy_container*>(arg);
 
@@ -177,11 +180,11 @@ void TargetCallback(Persistent<Value> target, void* arg) {
 #else
   cont->proxy->SetPointerInInternalField(0, NULL);
 #endif
-  cont->proxy.Dispose();
+  cont->proxy.Dispose(isolate);
   cont->proxy.Clear();
-  cont->target.Dispose();
+  cont->target.Dispose(isolate);
   cont->target.Clear();
-  cont->callbacks.Dispose();
+  cont->callbacks.Dispose(isolate);
   cont->callbacks.Clear();
   free(cont);
 }
@@ -198,17 +201,17 @@ Handle<Value> Create(const Arguments& args) {
   proxy_container *cont = (proxy_container *)
     malloc(sizeof(proxy_container));
 
-  cont->target = Persistent<Object>::New(args[0]->ToObject());
-  cont->callbacks = Persistent<Array>::New(Array::New());
+  cont->target = Persistent<Object>::New(isolate, args[0]->ToObject());
+  cont->callbacks = Persistent<Array>::New(isolate, Array::New());
 
-  cont->proxy = Persistent<Object>::New(proxyClass->NewInstance());
+  cont->proxy = Persistent<Object>::New(isolate, proxyClass->NewInstance());
 #if NODE_VERSION_AT_LEAST(0, 11, 0)
   cont->proxy->SetAlignedPointerInInternalField(0, cont);
 #else
   cont->proxy->SetPointerInInternalField(0, cont);
 #endif
 
-  cont->target.MakeWeak(cont, TargetCallback);
+  cont->target.MakeWeak(isolate, cont, TargetCallback);
 
   if (args.Length() >= 2) {
     AddCallback(cont->proxy, Handle<Function>::Cast(args[1]));
@@ -263,7 +266,7 @@ Handle<Value> IsNearDeath(const Arguments& args) {
 #endif
   assert(cont != NULL);
 
-  Handle<Boolean> rtn = Boolean::New(cont->target.IsNearDeath());
+  Handle<Boolean> rtn = Boolean::New(cont->target.IsNearDeath(isolate));
 
   return scope.Close(rtn);
 }
@@ -312,7 +315,9 @@ Handle<Value> Callbacks(const Arguments& args) {
 void Initialize(Handle<Object> target) {
   HandleScope scope;
 
-  proxyClass = Persistent<ObjectTemplate>::New(ObjectTemplate::New());
+  isolate = Isolate::GetCurrent();
+
+  proxyClass = Persistent<ObjectTemplate>::New(isolate, ObjectTemplate::New());
   proxyClass->SetNamedPropertyHandler(WeakNamedPropertyGetter,
                                       WeakNamedPropertySetter,
                                       WeakNamedPropertyQuery,
