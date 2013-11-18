@@ -24,11 +24,12 @@ using namespace node;
 namespace {
 
 
-typedef struct proxy_container {
+class proxy_container {
+public:
   Persistent<Object> proxy;
   Persistent<Object> target;
   Persistent<Object> emitter;
-} proxy_container;
+};
 
 
 Persistent<ObjectTemplate> proxyClass;
@@ -152,7 +153,7 @@ NAN_WEAK_CALLBACK(void *, TargetCallback) {
   NanDispose(cont->proxy);
   NanDispose(cont->target);
   NanDispose(cont->emitter);
-  free(cont);
+  delete cont;
 }
 
 /**
@@ -163,8 +164,7 @@ NAN_METHOD(Create) {
   NanScope();
   if (!args[0]->IsObject()) return NanThrowTypeError("Object expected");
 
-  proxy_container *cont = (proxy_container *)
-    malloc(sizeof(proxy_container));
+  proxy_container *cont = new proxy_container();
 
   Local<Object> proxy = NanPersistentToLocal(proxyClass)->NewInstance();
   NanAssignPersistent(Object, cont->proxy, proxy);
