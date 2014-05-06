@@ -27,8 +27,11 @@ namespace {
 class proxy_container {
 public:
   Persistent<Object> proxy;
-  Persistent<Object> target;
   Persistent<Object> emitter;
+  // we need a reference to our weak object.
+  // modifying nan to give us access to the persistent obj is the only way.
+  // if we save another persistent reference and not make it weak, it simply won't ever be gc'ed
+  _NanWeakCallbackInfo<Object, proxy_container> *cbinfo;
 };
 
 
@@ -42,7 +45,7 @@ bool IsDead(Handle<Object> proxy) {
   proxy_container *cont = reinterpret_cast<proxy_container*>(
     NanGetInternalFieldPointer(proxy, 0)
   );
-  return cont == NULL || cont->target.IsEmpty();
+  return cont == NULL || cont->cbinfo->persistent.IsEmpty();
 }
 
 
@@ -51,7 +54,8 @@ Handle<Object> Unwrap(Handle<Object> proxy) {
   proxy_container *cont = reinterpret_cast<proxy_container*>(
     NanGetInternalFieldPointer(proxy, 0)
   );
-  return NanPersistentToLocal(cont->target);
+  Local<Object> _target = NanNew<Object>(cont->cbinfo->persistent);
+  return _target;
 }
 
 Handle<Object> GetEmitter(Handle<Object> proxy) {
@@ -59,7 +63,8 @@ Handle<Object> GetEmitter(Handle<Object> proxy) {
     NanGetInternalFieldPointer(proxy, 0)
   );
   assert(cont != NULL);
-  return NanPersistentToLocal(cont->emitter);
+  Local<Object> _emitter = NanNew<Object>(cont->emitter);
+  return _emitter;
 }
 
 
@@ -85,13 +90,13 @@ NAN_PROPERTY_SETTER(WeakNamedPropertySetter) {
 
 NAN_PROPERTY_QUERY(WeakNamedPropertyQuery) {
   NanScope();
-  NanReturnValue(Integer::New(None));
+  NanReturnValue(NanNew<Integer>(None));
 }
 
 
 NAN_PROPERTY_DELETER(WeakNamedPropertyDeleter) {
   UNWRAP
-  NanReturnValue(Boolean::New(!dead && obj->Delete(property)));
+  NanReturnValue(NanNew<Boolean>(!dead && obj->Delete(property)));
 }
 
 
@@ -110,13 +115,13 @@ NAN_INDEX_SETTER(WeakIndexedPropertySetter) {
 
 NAN_INDEX_QUERY(WeakIndexedPropertyQuery) {
   NanScope();
-  NanReturnValue(Integer::New(None));
+  NanReturnValue(NanNew<Integer>(None));
 }
 
 
 NAN_INDEX_DELETER(WeakIndexedPropertyDeleter) {
   UNWRAP
-  NanReturnValue(Boolean::New(!dead && obj->Delete(index)));
+  NanReturnValue(NanNew<Boolean>(!dead && obj->Delete(index)));
 }
 
 
@@ -127,31 +132,31 @@ NAN_INDEX_DELETER(WeakIndexedPropertyDeleter) {
 
 NAN_PROPERTY_ENUMERATOR(WeakPropertyEnumerator) {
   UNWRAP
-  NanReturnValue(dead ? Array::New(0) : obj->GetPropertyNames());
+  NanReturnValue(dead ? NanNew<Array>(0) : obj->GetPropertyNames());
 }
 
 /**
  * Weakref callback function. Invokes the "global" callback function.
  */
 
-NAN_WEAK_CALLBACK(void *, TargetCallback) {
+NAN_WEAK_CALLBACK(TargetCallback) {
   NanScope();
 
-  assert(NAN_WEAK_CALLBACK_OBJECT.IsNearDeath());
-  void *arg = NAN_WEAK_CALLBACK_DATA(void *);
-  proxy_container *cont = reinterpret_cast<proxy_container *>(arg);
+  proxy_container *cont = data.GetParameter();
+  assert(data.info_->persistent.IsNearDeath());
 
   // invoke global callback function
   Local<Value> argv[] = {
-    NanPersistentToLocal(NAN_WEAK_CALLBACK_OBJECT),
-    NanPersistentToLocal(cont->emitter)
+    NanNew<Object>(cont->cbinfo->persistent),
+    NanNew<Object>(cont->emitter)
   };
   globalCallback->Call(2, argv);
 
   // clean everything up
-  NanSetInternalFieldPointer(NanPersistentToLocal(cont->proxy), 0, NULL);
+  Local<Object> proxy = NanNew<Object>(cont->proxy);
+  NanSetInternalFieldPointer(proxy, 0, NULL);
   NanDisposePersistent(cont->proxy);
-  NanDisposePersistent(cont->target);
+  NanDisposePersistent(cont->cbinfo->persistent);
   NanDisposePersistent(cont->emitter);
   delete cont;
 }
@@ -166,14 +171,14 @@ NAN_METHOD(Create) {
 
   proxy_container *cont = new proxy_container();
 
-  Local<Object> proxy = NanPersistentToLocal(proxyClass)->NewInstance();
-  NanAssignPersistent(Object, cont->proxy, proxy);
-  NanAssignPersistent(Object, cont->target, args[0].As<Object>());
-  NanAssignPersistent(Object, cont->emitter, args[1].As<Object>());
+  Local<Object> _target = args[0].As<Object>();
+  Local<Object> _emitter = args[1].As<Object>();
+  Local<Object> proxy = NanNew<ObjectTemplate>(proxyClass)->NewInstance();
+  NanAssignPersistent(cont->proxy, proxy);
+  NanAssignPersistent(cont->emitter, _emitter);
+  NanSetInternalFieldPointer(proxy, 0, cont);
 
-  NanSetInternalFieldPointer(NanPersistentToLocal(cont->proxy), 0, cont);
-
-  NanMakeWeak(cont->target, reinterpret_cast<void *>(cont), TargetCallback);
+  cont->cbinfo = NanMakeWeakPersistent(_target, cont, TargetCallback);
 
   NanReturnValue(proxy);
 }
@@ -192,7 +197,7 @@ bool isWeakRef (Handle<Value> val) {
 
 NAN_METHOD(IsWeakRef) {
   NanScope();
-  NanReturnValue(Boolean::New(isWeakRef(args[0])));
+  NanReturnValue(NanNew<Boolean>(isWeakRef(args[0])));
 }
 
 #define WEAKREF_FIRST_ARG                                    \
@@ -208,6 +213,7 @@ NAN_METHOD(IsWeakRef) {
 NAN_METHOD(Get) {
   NanScope();
   WEAKREF_FIRST_ARG
+  printf("get!\n");
   if (IsDead(proxy)) NanReturnUndefined();
   NanReturnValue(Unwrap(proxy));
 }
@@ -225,7 +231,8 @@ NAN_METHOD(IsNearDeath) {
   );
   assert(cont != NULL);
 
-  Handle<Boolean> rtn = Boolean::New(cont->target.IsNearDeath());
+  printf("IsNearDeath!\n");
+  Handle<Boolean> rtn = NanNew<Boolean>(cont->cbinfo->persistent.IsNearDeath());
 
   NanReturnValue(rtn);
 }
@@ -237,7 +244,8 @@ NAN_METHOD(IsNearDeath) {
 NAN_METHOD(IsDead) {
   NanScope();
   WEAKREF_FIRST_ARG
-  NanReturnValue(Boolean::New(IsDead(proxy)));
+  printf("isDead!\n");
+  NanReturnValue(NanNew<Boolean>(IsDead(proxy)));
 }
 
 /**
@@ -268,8 +276,8 @@ NAN_METHOD(SetCallback) {
 void Initialize(Handle<Object> exports) {
   NanScope();
 
-  Handle<ObjectTemplate> p = ObjectTemplate::New();
-  NanAssignPersistent(ObjectTemplate, proxyClass, p);
+  Handle<ObjectTemplate> p = NanNew<ObjectTemplate>();
+  NanAssignPersistent(proxyClass, p);
   p->SetNamedPropertyHandler(WeakNamedPropertyGetter,
                              WeakNamedPropertySetter,
                              WeakNamedPropertyQuery,
