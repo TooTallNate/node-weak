@@ -652,9 +652,6 @@ static v8::Isolate* nan_isolate = v8::Isolate::GetCurrent();
     NAN_INLINE v8::Local<T> GetValue() const {
       return NanNew(info_->persistent);
     }
-    V8_INLINE const v8::Persistent<T> GetPersistent() const {
-      return info_->persistent;
-    }
     NAN_INLINE P* GetParameter() const { return info_->parameter; }
     NAN_INLINE void Revive() const {
       info_->persistent.SetWeak(info_, info_->callback);
