@@ -178,7 +178,7 @@ NAN_METHOD(Create) {
   NanAssignPersistent(cont->emitter, _emitter);
   NanSetInternalFieldPointer(proxy, 0, cont);
 
-  cont->cbinfo = NanMakeWeakPersistent(_target, cont, TargetCallback);
+  cont->cbinfo = NanMakeWeakPersistent(_target, cont, TargetCallback<Object, proxy_container>);
 
   NanReturnValue(proxy);
 }
