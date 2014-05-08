@@ -304,10 +304,10 @@ NAN_INLINE uint32_t NanUInt32OptionValue(
 typedef v8::FunctionCallback NanFunctionCallback;
 static v8::Isolate* nan_isolate = v8::Isolate::GetCurrent();
 
-# define NanUndefined() v8::Undefined(nan_isolate)
-# define NanNull() v8::Null(nan_isolate)
-# define NanTrue() v8::True(nan_isolate)
-# define NanFalse() v8::False(nan_isolate)
+# define NanUndefined() NanNew(v8::Undefined(nan_isolate))
+# define NanNull() NanNew(v8::Null(nan_isolate))
+# define NanTrue() NanNew(v8::True(nan_isolate))
+# define NanFalse() NanNew(v8::False(nan_isolate))
 # define NanAdjustExternalMemory(amount)                                       \
     nan_isolate->AdjustAmountOfExternalAllocatedMemory(amount)
 # define NanSetTemplate(templ, name, value) templ->Set(nan_isolate, name, value)
@@ -652,16 +652,22 @@ static v8::Isolate* nan_isolate = v8::Isolate::GetCurrent();
     NAN_INLINE v8::Local<T> GetValue() const {
       return NanNew(info_->persistent);
     }
+
     NAN_INLINE P* GetParameter() const { return info_->parameter; }
+
     NAN_INLINE void Revive() const {
       info_->persistent.SetWeak(info_, info_->callback);
+    }
+
+    NAN_INLINE _NanWeakCallbackInfo<T, P>* GetCallbackInfo() const {
+      return info_;
     }
 
     NAN_INLINE void Dispose() const {
       delete info_;
     }
 
-   // private:
+   private:
     _NanWeakCallbackInfo<T, P>* info_;
   };
 
@@ -676,7 +682,7 @@ static v8::Isolate* nan_isolate = v8::Isolate::GetCurrent();
     }                                                                          \
                                                                                \
     template<typename T, typename P>                                           \
-    NAN_INLINE void _Nan_Weak_Callback_ ## name(                               \
+    static NAN_INLINE void _Nan_Weak_Callback_ ## name(                        \
         const _NanWeakCallbackData<T, P> &data)
 
 # define NanScope() v8::HandleScope scope(nan_isolate)
@@ -823,13 +829,13 @@ NAN_INLINE _NanWeakCallbackInfo<T, P>* NanMakeWeakPersistent(
   }
 
   NAN_INLINE v8::Local<v8::Value> NanRunScript(
-      v8::Local<NanUnboundScript> script
+      v8::Handle<NanUnboundScript> script
   ) {
     return script->BindToCurrentContext()->Run();
   }
 
   NAN_INLINE v8::Local<v8::Value> NanRunScript(
-      v8::Local<NanBoundScript> script
+      v8::Handle<NanBoundScript> script
   ) {
     return script->Run();
   }
@@ -891,10 +897,10 @@ NAN_INLINE _NanWeakCallbackInfo<T, P>* NanMakeWeakPersistent(
 
 typedef v8::InvocationCallback NanFunctionCallback;
 
-# define NanUndefined() v8::Undefined()
-# define NanNull() v8::Null()
-# define NanTrue() v8::True()
-# define NanFalse() v8::False()
+# define NanUndefined() NanNew(v8::Undefined())
+# define NanNull() NanNew(v8::Null())
+# define NanTrue() NanNew(v8::True())
+# define NanFalse() NanNew(v8::False())
 # define NanAdjustExternalMemory(amount)                                       \
     v8::V8::AdjustAmountOfExternalAllocatedMemory(amount)
 # define NanSetTemplate(templ, name, value) templ->Set(name, value)
@@ -1188,10 +1194,17 @@ typedef v8::InvocationCallback NanFunctionCallback;
     NAN_INLINE v8::Local<T> GetValue() const {
       return NanNew(info_->persistent);
     }
+
     NAN_INLINE P* GetParameter() const { return info_->parameter; }
+
     NAN_INLINE void Revive() const {
       info_->persistent.MakeWeak(info_, info_->callback);
     }
+
+    NAN_INLINE _NanWeakCallbackInfo<T, P>* GetCallbackInfo() const {
+      return info_;
+    }
+
     NAN_INLINE void Dispose() const {
       delete info_;
     }
@@ -1216,17 +1229,18 @@ typedef v8::InvocationCallback NanFunctionCallback;
     }                                                                          \
                                                                                \
     template<typename T, typename P>                                           \
-    NAN_INLINE void _Nan_Weak_Callback_ ## name(                               \
+    static NAN_INLINE void _Nan_Weak_Callback_ ## name(                        \
         const _NanWeakCallbackData<T, P> &data)
 
   template<typename T, typename P>
-  NAN_INLINE void NanMakeWeakPersistent(
+  NAN_INLINE _NanWeakCallbackInfo<T, P>* NanMakeWeakPersistent(
     v8::Handle<T> handle
   , P* parameter
   , typename _NanWeakCallbackInfo<T, P>::Callback callback) {
       _NanWeakCallbackInfo<T, P> *cbinfo =
         new _NanWeakCallbackInfo<T, P>(handle, parameter, callback);
       cbinfo->persistent.MakeWeak(cbinfo, callback);
+      return cbinfo;
   }
 
 # define NanScope() v8::HandleScope scope
@@ -1380,7 +1394,7 @@ typedef v8::InvocationCallback NanFunctionCallback;
     return v8::Script::Compile(s);
   }
 
-  NAN_INLINE v8::Local<v8::Value> NanRunScript(v8::Local<v8::Script> script) {
+  NAN_INLINE v8::Local<v8::Value> NanRunScript(v8::Handle<v8::Script> script) {
     return script->Run();
   }
 
@@ -1497,9 +1511,8 @@ class NanCallback {
 
 /* abstract */ class NanAsyncWorker {
  public:
-  explicit NanAsyncWorker(NanCallback *callback) : callback(callback) {
+  explicit NanAsyncWorker(NanCallback *callback) : callback(callback), errmsg_(NULL) {
     request.data = this;
-    errmsg = NULL;
 
     NanScope();
     v8::Local<v8::Object> obj = NanNew<v8::Object>();
@@ -1513,14 +1526,14 @@ class NanCallback {
       NanDisposePersistent(persistentHandle);
     if (callback)
       delete callback;
-    if (errmsg)
-      delete errmsg;
+    if (errmsg_)
+      delete[] errmsg_;
   }
 
   virtual void WorkComplete() {
     NanScope();
 
-    if (errmsg == NULL)
+    if (errmsg_ == NULL)
       HandleOKCallback();
     else
       HandleErrorCallback();
@@ -1546,7 +1559,6 @@ class NanCallback {
  protected:
   v8::Persistent<v8::Object> persistentHandle;
   NanCallback *callback;
-  const char *errmsg;
 
   virtual void HandleOKCallback() {
     NanScope();
@@ -1558,10 +1570,27 @@ class NanCallback {
     NanScope();
 
     v8::Local<v8::Value> argv[] = {
-        v8::Exception::Error(NanNew<v8::String>(errmsg))
+        v8::Exception::Error(NanNew<v8::String>(ErrorMessage()))
     };
     callback->Call(1, argv);
   }
+
+  void SetErrorMessage(const char *msg) {
+    if (errmsg_) {
+      delete[] errmsg_;
+    }
+
+    size_t size = strlen(msg) + 1;
+    errmsg_ = new char[size];
+    memcpy(errmsg_, msg, size);
+  }
+
+  const char* ErrorMessage() {
+    return errmsg_;
+  }
+
+private:
+  char *errmsg_;
 };
 
 NAN_INLINE void NanAsyncExecute (uv_work_t* req) {

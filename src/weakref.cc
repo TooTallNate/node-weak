@@ -143,7 +143,7 @@ NAN_WEAK_CALLBACK(TargetCallback) {
   NanScope();
 
   proxy_container *cont = data.GetParameter();
-  assert(data.info_->persistent.IsNearDeath());
+  assert(data.GetCallbackInfo()->persistent.IsNearDeath());
 
   // invoke global callback function
   Local<Value> argv[] = {
@@ -156,8 +156,8 @@ NAN_WEAK_CALLBACK(TargetCallback) {
   Local<Object> proxy = NanNew<Object>(cont->proxy);
   NanSetInternalFieldPointer(proxy, 0, NULL);
   NanDisposePersistent(cont->proxy);
-  NanDisposePersistent(cont->cbinfo->persistent);
   NanDisposePersistent(cont->emitter);
+  data.Dispose();
   delete cont;
 }
 
