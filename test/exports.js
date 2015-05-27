@@ -22,6 +22,8 @@ describe('exports', function () {
   checkFunction('isDead')
   checkFunction('callbacks')
   checkFunction('addCallback')
+  checkFunction('removeCallback')
+  checkFunction('removeCallbacks')
 
   it('should be a circular reference to "create"', function () {
     assert(weak === weak.create);

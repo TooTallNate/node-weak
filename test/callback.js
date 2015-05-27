@@ -73,11 +73,37 @@ describe('weak()', function () {
 
 describe('callbacks()', function () {
 
-  it('should return the Weakref\'s internal "callback" Array', function () {
-    var r = weak({})
+  it('should return the Weakref\'s "callback" Array', function () {
+    var r = weak({}, function() {})
       , callbacks = weak.callbacks(r)
     assert(Array.isArray(callbacks))
-    assert.equal(0, callbacks.length)
+    assert.equal(1, callbacks.length)
+  })
+
+})
+
+describe('removeCallback()', function() {
+
+  it('removed callbacks should not be called', function() {
+    var called = false
+      , fn = function() { called = true }
+      , r = weak({}, fn)
+    weak.removeCallback(r, fn)
+    gc()
+    assert(!called)
+  })
+
+})
+
+describe('removeCallbacks()', function() {
+
+  it('removed callbacks should not be called', function() {
+     var called = false
+      , fn = function() { called = true }
+      , r = weak({}, fn)
+     weak.removeCallbacks(r)
+     gc()
+     assert(!called)
   })
 
 })

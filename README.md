@@ -148,16 +148,24 @@ Checks to see if `obj` is "weak reference" instance. Returns `true` if the
 passed in object is a "weak reference", `false` otherwise.
 
 
-### undefined weak.addCallback(Weakref ref, Function callback)
+### EventEmitter weak.addCallback(Weakref ref, Function callback)
 
 Adds `callback` to the Array of callback functions that will be invoked before the
 Object gets garbage collected. The callbacks get executed in the order that they
 are added.
 
+### EventEmitter weak.removeCallback(Weakref ref, Function callback)
+
+Removes `callback` from the Array of callback functions that will be invoked before
+the Object gets garbage collected.
+
+### EventEmitter weak.removeCallbacks(Weakref ref)
+
+Empties the Array of callback functions that will be invoked before the Object gets
+garbage collected.
 
 ### Array weak.callbacks(Weakref ref)
 
-Returns the internal `Array` that `ref` iterates through to invoke the GC
-callbacks. The array can be `push()`ed or `unshift()`ed onto, to have more control
-over the execution order of the callbacks. This is similar in concept to node's
-`EventEmitter#listeners()` function.
+Returns an Array that `ref` iterates through to invoke the GC callbacks. This
+utilizes node's `EventEmitter#listeners()` function and therefore returns a copy
+in node 0.10 and newer.
