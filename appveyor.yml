@@ -4,16 +4,16 @@
 environment:
   matrix:
     - nodejs_version: "0.12"  # Node stable
-    - nodejs_version: "2"     # io.js latest
+    - iojs_version: "2"       # io.js latest
     - nodejs_version: "0.11"  # Node unstable
     - nodejs_version: "0.10"
     - nodejs_version: "0.8"
-    - nodejs_version: "1"
+    - iojs_version: "1"
 
 matrix:
   allow_failures:
     - nodejs_version: "0.11"  # Node unstable
-    - nodejs_version: "2"     # io.js latest
+    - iojs_version: "2"       # io.js latest
 
 platform:
   - x64
@@ -29,10 +29,11 @@ install:
       If ( $env:nodejs_version -eq "0.8" ) {
         Install-Product node $env:nodejs_version $env:platform
       } else {
-        Update-NodeJsInstallation (Get-NodeJsLatestBuild $env:nodejs_version) $env:platform
+        Update-NodeJsInstallation (Get-NodeJsLatestBuild "$env:nodejs_version$env:iojs_version") $env:platform
       }
   # Update npm itself if too old
   - IF "%nodejs_version%" == "0.8" npm -g install npm@1.4.28
+  - IF DEFINED %iojs_version ( npm install node-gyp-install; node-gyp-install )
   # Install with dependencies
   - npm install --msvs_version=2013
 
