@@ -31,9 +31,8 @@ public:
 
 
 Nan::Persistent<ObjectTemplate> proxyClass;
-
 Nan::Callback *globalCallback;
-
+Nan::HandleScope scope;
 
 bool IsDead(Local<Object> proxy) {
   assert(proxy->InternalFieldCount() == 1);
@@ -256,7 +255,6 @@ NAN_METHOD(SetCallback) {
  */
 
 NAN_MODULE_INIT(Initialize) {
-  Nan::HandleScope scope;
 
   Local<ObjectTemplate> p = Nan::New<ObjectTemplate>();
   proxyClass.Reset(p);
