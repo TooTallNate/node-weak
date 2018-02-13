@@ -20,4 +20,9 @@ describe('create()', function () {
     })
   })
 
+  it('should acknowledge the weakness of created values', function () {
+    var ref = weak.create([]);
+    assert(weak.isWeakRef(ref));
+  })
+
 })
