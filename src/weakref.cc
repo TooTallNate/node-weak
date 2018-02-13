@@ -34,11 +34,16 @@ Nan::Persistent<ObjectTemplate> proxyClass;
 
 Nan::Callback *globalCallback;
 
+// Field index used to store the container object.
+#define FIELD_INDEX_CONTAINER (0)
+
+// Count of internal fields used by instances created by this module.
+#define FIELD_COUNT (1)
 
 bool IsDead(Local<Object> proxy) {
-  assert(proxy->InternalFieldCount() == 1);
+  assert(proxy->InternalFieldCount() == FIELD_COUNT);
   proxy_container *cont = reinterpret_cast<proxy_container*>(
-    Nan::GetInternalFieldPointer(proxy, 0)
+    Nan::GetInternalFieldPointer(proxy, FIELD_INDEX_CONTAINER)
   );
   return cont == NULL || cont->target.IsEmpty();
 }
@@ -47,7 +52,7 @@ bool IsDead(Local<Object> proxy) {
 Local<Object> Unwrap(Local<Object> proxy) {
   assert(!IsDead(proxy));
   proxy_container *cont = reinterpret_cast<proxy_container*>(
-    Nan::GetInternalFieldPointer(proxy, 0)
+    Nan::GetInternalFieldPointer(proxy, FIELD_INDEX_CONTAINER)
   );
   Local<Object> _target = Nan::New<Object>(cont->target);
   return _target;
@@ -55,7 +60,7 @@ Local<Object> Unwrap(Local<Object> proxy) {
 
 Local<Object> GetEmitter(Local<Object> proxy) {
   proxy_container *cont = reinterpret_cast<proxy_container*>(
-    Nan::GetInternalFieldPointer(proxy, 0)
+    Nan::GetInternalFieldPointer(proxy, FIELD_INDEX_CONTAINER)
   );
   assert(cont != NULL);
   Local<Object> _emitter = Nan::New<Object>(cont->emitter);
@@ -67,7 +72,6 @@ Local<Object> GetEmitter(Local<Object> proxy) {
   Local<Object> obj;                      \
   const bool dead = IsDead(info.This());  \
   if (!dead) obj = Unwrap(info.This());   \
-
 
 NAN_PROPERTY_GETTER(WeakNamedPropertyGetter) {
   UNWRAP
@@ -148,7 +152,7 @@ static void TargetCallback(const Nan::WeakCallbackInfo<proxy_container> &info) {
 
   // clean everything up
   Local<Object> proxy = Nan::New<Object>(cont->proxy);
-  Nan::SetInternalFieldPointer(proxy, 0, NULL);
+  Nan::SetInternalFieldPointer(proxy, FIELD_INDEX_CONTAINER, NULL);
   cont->proxy.Reset();
   cont->emitter.Reset();
   delete cont;
@@ -169,7 +173,7 @@ NAN_METHOD(Create) {
   cont->proxy.Reset(proxy);
   cont->emitter.Reset(_emitter);
   cont->target.Reset(_target);
-  Nan::SetInternalFieldPointer(proxy, 0, cont);
+  Nan::SetInternalFieldPointer(proxy, FIELD_INDEX_CONTAINER, cont);
 
   cont->target.SetWeak(cont, TargetCallback, Nan::WeakCallbackType::kParameter);
 
@@ -181,7 +185,7 @@ NAN_METHOD(Create) {
  */
 
 bool isWeakRef (Local<Value> val) {
-  return val->IsObject() && val.As<Object>()->InternalFieldCount() == 1;
+  return val->IsObject() && val.As<Object>()->InternalFieldCount() == FIELD_COUNT;
 }
 
 /**
@@ -216,7 +220,7 @@ NAN_METHOD(IsNearDeath) {
   WEAKREF_FIRST_ARG
 
   proxy_container *cont = reinterpret_cast<proxy_container*>(
-    Nan::GetInternalFieldPointer(proxy, 0)
+    Nan::GetInternalFieldPointer(proxy, FIELD_INDEX_CONTAINER)
   );
   assert(cont != NULL);
 
@@ -273,7 +277,7 @@ NAN_MODULE_INIT(Initialize) {
                                  WeakIndexedPropertyQuery,
                                  WeakIndexedPropertyDeleter,
                                  WeakPropertyEnumerator);
-  p->SetInternalFieldCount(1);
+  p->SetInternalFieldCount(FIELD_COUNT);
 
   Nan::SetMethod(target, "get", Get);
   Nan::SetMethod(target, "isWeakRef", IsWeakRef);
