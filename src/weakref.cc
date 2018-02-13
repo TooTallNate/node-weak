@@ -37,8 +37,16 @@ Nan::Callback *globalCallback;
 // Field index used to store the container object.
 #define FIELD_INDEX_CONTAINER (0)
 
+// Field index used to store the unique pointer value used to identify objects
+// as instances created by this module).
+#define FIELD_INDEX_IDENT (1)
+
 // Count of internal fields used by instances created by this module.
-#define FIELD_COUNT (1)
+#define FIELD_COUNT (2)
+
+// The value stored at `FIELD_INDEX_IDENT`, which is designed to be unique to
+// this module, barring intentional mischief from other native code.
+#define IDENT_VALUE ((void *) &proxyClass)
 
 bool IsDead(Local<Object> proxy) {
   assert(proxy->InternalFieldCount() == FIELD_COUNT);
@@ -174,18 +182,22 @@ NAN_METHOD(Create) {
   cont->emitter.Reset(_emitter);
   cont->target.Reset(_target);
   Nan::SetInternalFieldPointer(proxy, FIELD_INDEX_CONTAINER, cont);
+  Nan::SetInternalFieldPointer(proxy, FIELD_INDEX_IDENT, IDENT_VALUE);
 
   cont->target.SetWeak(cont, TargetCallback, Nan::WeakCallbackType::kParameter);
 
   info.GetReturnValue().Set(proxy);
 }
 
-/**
- * TODO: Make this better.
- */
-
 bool isWeakRef (Local<Value> val) {
-  return val->IsObject() && val.As<Object>()->InternalFieldCount() == FIELD_COUNT;
+  if (!val->IsObject()) {
+    return false;
+  }
+
+  Local<Object> obj = val.As<Object>();
+
+  return obj->InternalFieldCount() == FIELD_COUNT
+    && Nan::GetInternalFieldPointer(obj, FIELD_INDEX_IDENT) == IDENT_VALUE;
 }
 
 /**
