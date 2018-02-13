@@ -1,4 +1,11 @@
 
+1.0.1 / 2016-01-03
+==================
+
+  * add missing HandleScope in callback (#67, @laverdet)
+  * add Travis support for v4.x, v5.x (#60, @robcolburn)
+  * appveyor: place .bin into the $PATH
+
 1.0.0 / 2015-08-17
 ==================
 
