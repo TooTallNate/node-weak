@@ -2,7 +2,7 @@ var assert = require('assert');
 var weak = require('../')
 
 describe('promise', function () {
-  if (!Promise) {
+  if (!global.Promise) {
     // Version of JS without `Promise`; nothing to do.
     return;
   }
