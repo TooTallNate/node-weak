@@ -128,15 +128,22 @@ NAN_INDEX_DELETER(WeakIndexedPropertyDeleter) {
   info.GetReturnValue().Set(!dead && Nan::Delete(obj, index).FromJust());
 }
 
-
-/**
- * Only one "enumerator" function needs to be defined. This function is used for
- * both the property and indexed enumerator functions.
- */
-
-NAN_PROPERTY_ENUMERATOR(WeakPropertyEnumerator) {
+NAN_PROPERTY_ENUMERATOR(WeakNamedPropertyEnumerator) {
   UNWRAP
+#if NODE_MAJOR_VERSION >= 7
+  info.GetReturnValue().Set(dead ? Nan::New<Array>(0) : obj->GetPropertyNames(Nan::GetCurrentContext(), KeyCollectionMode::kIncludePrototypes, ONLY_ENUMERABLE, IndexFilter::kSkipIndices).ToLocalChecked());
+#else
   info.GetReturnValue().Set(dead ? Nan::New<Array>(0) : Nan::GetPropertyNames(obj).ToLocalChecked());
+#endif
+}
+
+NAN_INDEX_ENUMERATOR(WeakIndexedPropertyEnumerator) {
+  UNWRAP
+#if NODE_MAJOR_VERSION >= 7
+  info.GetReturnValue().Set(dead ? Nan::New<Array>(0) : obj->GetPropertyNames(Nan::GetCurrentContext(), KeyCollectionMode::kIncludePrototypes, static_cast<PropertyFilter> (ONLY_ENUMERABLE | SKIP_STRINGS | SKIP_SYMBOLS), IndexFilter::kIncludeIndices).ToLocalChecked());
+#else
+  info.GetReturnValue().Set(dead ? Nan::New<Array>(0) : Nan::GetPropertyNames(obj).ToLocalChecked());
+#endif
 }
 
 /**
@@ -282,13 +289,13 @@ NAN_MODULE_INIT(Initialize) {
                                WeakNamedPropertySetter,
                                WeakNamedPropertyQuery,
                                WeakNamedPropertyDeleter,
-                               WeakPropertyEnumerator);
+                               WeakNamedPropertyEnumerator);
   Nan::SetIndexedPropertyHandler(p,
                                  WeakIndexedPropertyGetter,
                                  WeakIndexedPropertySetter,
                                  WeakIndexedPropertyQuery,
                                  WeakIndexedPropertyDeleter,
-                                 WeakPropertyEnumerator);
+                                 WeakIndexedPropertyEnumerator);
   p->SetInternalFieldCount(FIELD_COUNT);
 
   Nan::SetMethod(target, "get", Get);
