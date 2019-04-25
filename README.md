@@ -124,13 +124,6 @@ created with. If this is called with a dead reference, `undefined` is returned.
 Checks to see if `ref` is a dead reference. Returns `true` if the original Object
 has already been GC'd, `false` otherwise.
 
-
-### Boolean weak.isNearDeath(Weakref ref)
-
-Checks to see if `ref` is "near death". This will be `true` exactly during the
-weak reference callback function, and `false` any other time.
-
-
 ### Boolean weak.isWeakRef(Object obj)
 
 Checks to see if `obj` is "weak reference" instance. Returns `true` if the

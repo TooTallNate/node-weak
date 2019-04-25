@@ -15,20 +15,20 @@
     "function",
     "callback"
   ],
-  "version": "1.0.1",
+  "version": "2.0.0",
   "repository": {
     "type": "git",
     "url": "git://github.com/TooTallNate/node-weak.git"
   },
   "main": "lib/weak.js",
   "scripts": {
-    "test": "mocha -gc --reporter spec"
+    "test": "mocha --expose-gc --gc-global --reporter spec"
   },
   "dependencies": {
-    "bindings": "^1.2.1",
-    "nan": "^2.0.5"
+    "bindings": "^1.5.0",
+    "nan": "^2.13.2"
   },
   "devDependencies": {
-    "mocha": "5"
+    "mocha": "6"
   }
 }
