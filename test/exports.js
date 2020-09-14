@@ -18,7 +18,6 @@ describe('exports', function () {
   checkFunction('get')
   checkFunction('create')
   checkFunction('isWeakRef')
-  checkFunction('isNearDeath')
   checkFunction('isDead')
   checkFunction('callbacks')
   checkFunction('addCallback')

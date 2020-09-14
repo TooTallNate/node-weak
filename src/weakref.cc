@@ -128,20 +128,26 @@ NAN_INDEX_DELETER(WeakIndexedPropertyDeleter) {
   info.GetReturnValue().Set(!dead && Nan::Delete(obj, index).FromJust());
 }
 
-
-/**
- * Only one "enumerator" function needs to be defined. This function is used for
- * both the property and indexed enumerator functions.
- */
-
-NAN_PROPERTY_ENUMERATOR(WeakPropertyEnumerator) {
+NAN_PROPERTY_ENUMERATOR(WeakNamedPropertyEnumerator) {
   UNWRAP
+#if NODE_MAJOR_VERSION >= 7
+  info.GetReturnValue().Set(dead ? Nan::New<Array>(0) : obj->GetPropertyNames(Nan::GetCurrentContext(), KeyCollectionMode::kIncludePrototypes, ONLY_ENUMERABLE, IndexFilter::kSkipIndices).ToLocalChecked());
+#else
   info.GetReturnValue().Set(dead ? Nan::New<Array>(0) : Nan::GetPropertyNames(obj).ToLocalChecked());
+#endif
+}
+
+NAN_INDEX_ENUMERATOR(WeakIndexedPropertyEnumerator) {
+  UNWRAP
+#if NODE_MAJOR_VERSION >= 7
+  info.GetReturnValue().Set(dead ? Nan::New<Array>(0) : obj->GetPropertyNames(Nan::GetCurrentContext(), KeyCollectionMode::kIncludePrototypes, static_cast<PropertyFilter> (ONLY_ENUMERABLE | SKIP_STRINGS | SKIP_SYMBOLS), IndexFilter::kIncludeIndices).ToLocalChecked());
+#else
+  info.GetReturnValue().Set(dead ? Nan::New<Array>(0) : Nan::GetPropertyNames(obj).ToLocalChecked());
+#endif
 }
 
 /**
- * Weakref callback function. Invokes the "global" callback function,
- * which emits the _CB event on the per-object EventEmitter.
+ * Weakref callback function. Invokes the "global" callback function.
  */
 
 static void TargetCallback(const Nan::WeakCallbackInfo<proxy_container> &info) {
@@ -152,11 +158,7 @@ static void TargetCallback(const Nan::WeakCallbackInfo<proxy_container> &info) {
   Local<Value> argv[] = {
     Nan::New<Object>(cont->emitter)
   };
-  // Invoke callback directly, not via Nan::Callback->Call() which uses
-  // node::MakeCallback() which calls into process._tickCallback()
-  // too. Those other callbacks are not safe to run from here.
-  v8::Local<v8::Function> globalCallbackDirect = globalCallback->GetFunction();
-  globalCallbackDirect->Call(Nan::GetCurrentContext()->Global(), 1, argv);
+  Nan::Call(*globalCallback, 1, argv);
 
   // clean everything up
   Local<Object> proxy = Nan::New<Object>(cont->proxy);
@@ -177,7 +179,7 @@ NAN_METHOD(Create) {
 
   Local<Object> _target = info[0].As<Object>();
   Local<Object> _emitter = info[1].As<Object>();
-  Local<Object> proxy = Nan::New<ObjectTemplate>(proxyClass)->NewInstance();
+  Local<Object> proxy = Nan::NewInstance(Nan::New<ObjectTemplate>(proxyClass)).ToLocalChecked();
   cont->proxy.Reset(proxy);
   cont->emitter.Reset(_emitter);
   cont->target.Reset(_target);
@@ -225,23 +227,6 @@ NAN_METHOD(Get) {
 }
 
 /**
- * `isNearDeath(weakref)` JS function.
- */
-
-NAN_METHOD(IsNearDeath) {
-  WEAKREF_FIRST_ARG
-
-  proxy_container *cont = reinterpret_cast<proxy_container*>(
-    Nan::GetInternalFieldPointer(proxy, FIELD_INDEX_CONTAINER)
-  );
-  assert(cont != NULL);
-
-  Local<Boolean> rtn = Nan::New<Boolean>(cont->target.IsNearDeath());
-
-  info.GetReturnValue().Set(rtn);
-}
-
-/**
  * `isDead(weakref)` JS function.
  */
 
@@ -282,18 +267,17 @@ NAN_MODULE_INIT(Initialize) {
                                WeakNamedPropertySetter,
                                WeakNamedPropertyQuery,
                                WeakNamedPropertyDeleter,
-                               WeakPropertyEnumerator);
+                               WeakNamedPropertyEnumerator);
   Nan::SetIndexedPropertyHandler(p,
                                  WeakIndexedPropertyGetter,
                                  WeakIndexedPropertySetter,
                                  WeakIndexedPropertyQuery,
                                  WeakIndexedPropertyDeleter,
-                                 WeakPropertyEnumerator);
+                                 WeakIndexedPropertyEnumerator);
   p->SetInternalFieldCount(FIELD_COUNT);
 
   Nan::SetMethod(target, "get", Get);
   Nan::SetMethod(target, "isWeakRef", IsWeakRef);
-  Nan::SetMethod(target, "isNearDeath", IsNearDeath);
   Nan::SetMethod(target, "isDead", IsDead);
   Nan::SetMethod(target, "_create", Create);
   Nan::SetMethod(target, "_getEmitter", GetEmitter);
